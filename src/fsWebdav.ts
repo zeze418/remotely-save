@@ -411,7 +411,6 @@ export class FakeFsWebdav extends FakeFs {
     }
 
     // taken from https://github.com/perry-mitchell/webdav-client/blob/master/source/operations/partialUpdateFileContents.ts
-    // which is under MIT license
     if (
       compliance.server.includes("Apache") &&
       compliance.compliance.includes("<http://apache.org/dav/propset/fs/1>")

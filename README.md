@@ -39,7 +39,6 @@ This is yet another unofficial sync plugin for Obsidian. If you like it or find 
 - **Skip Large files** and **skip paths** by custom regex conditions!
 - **[Sync Algorithm](./docs/sync_algorithm/v3/intro.md) is provided for discussion.**
 - **[Basic Conflict Detection And Handling](./docs/sync_algorithm/v3/intro.md)** for free version. **[Advanced Smart Conflict Handling](./pro/README.md)** for PRO version. 
-- Source Available. See [License](./LICENSE) for details.
 
 ## Limitations
 

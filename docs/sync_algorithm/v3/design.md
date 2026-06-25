@@ -6,7 +6,7 @@ An absolutely better sync algorithm. Better for tracking deletions and better fo
 
 ## Huge Thanks
 
-Basically a combination of algorithm v2 + [synclone](https://github.com/Jwink3101/syncrclone/blob/master/docs/algorithm.md) + [rsinc](https://github.com/ConorWilliams/rsinc) + (some of rclone [bisync](https://rclone.org/bisync/)). All of the later three are released under MIT License so no worries about the licenses.
+Basically a combination of algorithm v2 + [synclone](https://github.com/Jwink3101/syncrclone/blob/master/docs/algorithm.md) + [rsinc](https://github.com/ConorWilliams/rsinc) + (some of rclone [bisync](https://rclone.org/bisync/)).
 
 ## Features
 

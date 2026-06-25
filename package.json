@@ -23,7 +23,6 @@
   "source": "main.ts",
   "keywords": [],
   "author": "",
-  "license": "SEE LICENSE IN LICENSE",
   "devDependencies": {
     "@biomejs/biome": "1.8.3",
     "@microsoft/microsoft-graph-types": "^2.40.0",

@@ -38,8 +38,3 @@ PRO (paid) feature "sync with Koofr" allows users to to sync with Koofr (using i
 
 PRO (paid) feature "sync with Azure Blob Storage" allows users to to sync with Azure Blob Storage. Tutorials and limitations are documented [here](../docs/remote_services/azureblobstorage/README.md).
 
-## License
-
-The codes or files or subfolders inside the current folder (`pro` in the repo), are released under "source available" license: "PolyForm Strict License 1.0.0".
-
-Suggestions are welcome.

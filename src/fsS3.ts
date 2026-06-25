@@ -41,7 +41,6 @@ import { FakeFs } from "./fsAll";
 /**
  * This is close to origin implementation of FetchHttpHandler
  * https://github.com/aws/aws-sdk-js-v3/blob/main/packages/fetch-http-handler/src/fetch-http-handler.ts
- * that is released under Apache 2 License.
  * But this uses Obsidian requestUrl instead.
  */
 class ObsHttpHandler extends FetchHttpHandler {
