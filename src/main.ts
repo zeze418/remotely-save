@@ -293,7 +293,7 @@ export default class RemotelySavePlugin extends Plugin {
       }
     };
 
-    const notifyFunc = async (s: SyncTriggerSourceType, step: number) => {
+    const notifyFunc = async (s: SyncTriggerSourceType, step: number, everythingOk?: boolean) => {
       switch (step) {
         case 0:
           if (s === "dry") {
@@ -381,10 +381,18 @@ export default class RemotelySavePlugin extends Plugin {
           break;
 
         case 8:
-          if (this.settings.currLogLevel === "info") {
-            getNotice(s, t("syncrun_shortstep2"));
+          if (everythingOk === false) {
+            if (this.settings.currLogLevel === "info") {
+              getNotice(s, t("syncrun_shortstep2_partial"), 10 * 1000);
+            } else {
+              getNotice(s, t("syncrun_step8_partial"), 10 * 1000);
+            }
           } else {
-            getNotice(s, t("syncrun_step8"));
+            if (this.settings.currLogLevel === "info") {
+              getNotice(s, t("syncrun_shortstep2"));
+            } else {
+              getNotice(s, t("syncrun_step8"));
+            }
           }
           break;
 

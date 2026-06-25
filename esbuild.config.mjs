@@ -14,6 +14,37 @@ console.log(`esbuild version = ${esbuild.version}`);
 
 const prod = process.argv[2] === "production";
 
+// Some transitive deps (e.g. clean-stack via aggregate-error) import node:
+// builtins purely for prettifying error stacks. Those builtins don't exist in
+// the Obsidian mobile/browser runtime, so we stub them with harmless no-ops.
+// This keeps AggregateError working (just with less fancy stack traces).
+const nodeBuiltinStubPlugin = {
+  name: "node-builtin-stub",
+  setup(build) {
+    const stubbed = /^node:(url|os|path|process|util|tty)$/;
+    build.onResolve({ filter: stubbed }, (args) => ({
+      path: args.path,
+      namespace: "node-stub",
+    }));
+    build.onLoad({ filter: /.*/, namespace: "node-stub" }, () => ({
+      contents: `
+        export const fileURLToPath = (x) => (typeof x === "string" ? x : "");
+        export const homedir = () => "";
+        export const sep = "/";
+        export const platform = () => "browser";
+        export default {
+          fileURLToPath,
+          homedir,
+          sep,
+          platform,
+          inspect: (x) => String(x),
+        };
+      `,
+      loader: "js",
+    }));
+  },
+};
+
 const DEFAULT_DROPBOX_APP_KEY = process.env.DROPBOX_APP_KEY || "";
 const DEFAULT_ONEDRIVE_CLIENT_ID = process.env.ONEDRIVE_CLIENT_ID || "";
 const DEFAULT_ONEDRIVE_AUTHORITY = process.env.ONEDRIVE_AUTHORITY || "";
@@ -57,7 +88,7 @@ esbuild
     inject: ["./esbuild.injecthelper.mjs"],
     format: "cjs",
     // watch: !prod, // no longer valid in esbuild 0.17
-    target: "es2016",
+    target: "es2020",
     logLevel: "info",
     sourcemap: prod ? false : "inline",
     treeShaking: true,
@@ -90,7 +121,7 @@ esbuild
       // https://github.com/Azure/azure-sdk-for-js/blob/main/sdk/core/core-util/src/checkEnvironment.ts
       "globalThis.process.versions": `undefined`,
     },
-    plugins: [inlineWorkerPlugin()],
+    plugins: [nodeBuiltinStubPlugin, inlineWorkerPlugin()],
   })
   .then((context) => {
     if (process.argv.includes("--watch")) {

@@ -1803,36 +1803,28 @@ export const doActualSync = async (
   ];
 
   let realCounter = 0;
+  const allErrors: Error[] = [];
+
   for (let i = 0; i < nested.length; ++i) {
     profiler?.addIndent();
     profiler?.insert(`doActualSync: step ${i} start`);
     console.debug(logTexts[i]);
 
     const operations = nested[i];
-    // console.debug(`curr operations=${JSON.stringify(operations, null, 2)}`);
 
     for (let j = 0; j < operations.length; ++j) {
       const singleLevelOps = operations[j];
-      // console.debug(
-      //   `singleLevelOps=${JSON.stringify(singleLevelOps, null, 2)}`
-      // );
       if (singleLevelOps === undefined || singleLevelOps === null) {
         continue;
       }
 
       const queue = new PQueue({ concurrency: concurrency, autoStart: true });
-      const potentialErrors: Error[] = [];
-      let tooManyErrors = false;
 
       for (let k = 0; k < singleLevelOps.length; ++k) {
         const val = singleLevelOps[k];
         const key = val.key;
 
         const fn = async () => {
-          // console.debug(
-          //   `start syncing "${key}" with plan ${JSON.stringify(val)}`
-          // );
-
           await callbackSyncProcess?.(
             triggerSource,
             realCounter,
@@ -1840,10 +1832,6 @@ export const doActualSync = async (
             key,
             val.decision
           );
-
-          if (val.change === undefined || val.change) {
-            realCounter += 1;
-          }
 
           await dispatchOperationToActualV3(
             key,
@@ -1856,34 +1844,27 @@ export const doActualSync = async (
             conflictAction
           );
 
-          // console.debug(`finished ${key}`);
+          if (val.change === undefined || val.change) {
+            realCounter += 1;
+          }
         };
 
         queue.add(fn).catch((e) => {
           const msg = `${key}: ${e.message}`;
-          potentialErrors.push(new Error(msg));
-          if (potentialErrors.length >= 3) {
-            tooManyErrors = true;
-            queue.pause();
-            queue.clear();
-          }
+          console.error(msg);
+          allErrors.push(new Error(msg));
         });
       }
 
       await queue.onIdle();
-
-      if (potentialErrors.length > 0) {
-        if (tooManyErrors) {
-          potentialErrors.push(
-            new Error("too many errors, stop the remaining tasks")
-          );
-        }
-        throw new AggregateError(potentialErrors);
-      }
     }
 
     profiler?.insert(`doActualSync: step ${i} end`);
     profiler?.removeIndent();
+  }
+
+  if (allErrors.length > 0) {
+    throw new AggregateError(allErrors);
   }
 
   profiler?.insert(`doActualSync: exit`);
@@ -1920,7 +1901,7 @@ export async function syncer(
   configSaver: () => Promise<any>,
   getProtectModifyPercentageErrorStrFunc: any,
   markIsSyncingFunc: (isSyncing: boolean) => void,
-  notifyFunc?: (s: SyncTriggerSourceType, step: number) => Promise<any>,
+  notifyFunc?: (s: SyncTriggerSourceType, step: number, everythingOk?: boolean) => Promise<any>,
   errNotifyFunc?: (s: SyncTriggerSourceType, error: Error) => Promise<any>,
   ribboonFunc?: (s: SyncTriggerSourceType, step: number) => Promise<any>,
   statusBarFunc?: (
@@ -2085,7 +2066,7 @@ export async function syncer(
   await profiler?.save(db, vaultRandomID, settings.serviceType);
 
   step = 8;
-  await notifyFunc?.(triggerSource, step);
+  await notifyFunc?.(triggerSource, step, everythingOk);
   await ribboonFunc?.(triggerSource, step);
   await statusBarFunc?.(triggerSource, step, everythingOk);
 

@@ -183,44 +183,43 @@ async function retryReq<T>(
       return await reqFunc();
     } catch (e: unknown) {
       const err = e as DropboxResponseError<ErrSubType>;
-      if (err.status === undefined) {
-        // then the err is not DropboxResponseError
-        throw err;
-      }
-      if (err.status !== 429) {
-        // then the err is not "too many requests", give up
+
+      const isRetryable =
+        err.status === undefined || // network error (no HTTP status)
+        err.status === 429 ||
+        (err.status >= 500 && err.status < 600);
+
+      if (!isRetryable) {
         throw err;
       }
 
       if (idx === waitSeconds.length - 1) {
-        // the last retry also failed, give up
         throw new Error(
           `${
             extraHint === "" ? "" : extraHint + ": "
-          }"429 too many requests", after retrying for ${
+          }status ${err.status ?? "network error"}, after retrying for ${
             idx + 1
           } times still failed.`
         );
       }
 
-      const headers = headersToRecord(err.headers);
-      const svrSec =
-        err.error.error.retry_after ||
-        Number.parseInt(headers["retry-after"] || "1") ||
-        1;
+      let svrSec = 0;
+      if (err.status === 429) {
+        const headers = headersToRecord(err.headers);
+        svrSec =
+          err.error?.error?.retry_after ||
+          Number.parseInt(headers["retry-after"] || "1") ||
+          1;
+      }
       const fallbackSec = waitSeconds[idx];
       const secMin = Math.max(svrSec, fallbackSec);
       const secMax = Math.max(secMin * 1.8, 2);
       console.warn(
         `${
           extraHint === "" ? "" : extraHint + ": "
-        }We have "429 too many requests" error of ${
+        }Retryable error (status=${err.status ?? "network"}) on ${
           idx + 1
-        }-th try, at time ${Date.now()}, and wait for ${secMin} ~ ${secMax} seconds to retry. Original info: ${JSON.stringify(
-          err.error,
-          null,
-          2
-        )}`
+        }-th try, at time ${Date.now()}, waiting ${secMin}~${secMax}s to retry.`
       );
       await delay(random(secMin * 1000, secMax * 1000));
     }
@@ -700,19 +699,14 @@ export class FakeFsDropbox extends FakeFs {
     const remoteFileName1 = getDropboxPath(key1, this.remoteBaseDir);
     const remoteFileName2 = getDropboxPath(key2, this.remoteBaseDir);
     await this._init();
-    try {
-      await retryReq(
-        () =>
-          this.dropbox.filesMoveV2({
-            from_path: remoteFileName1,
-            to_path: remoteFileName2,
-          }),
-        `${key1}=>${key2}` // just a hint here
-      );
-    } catch (err) {
-      console.error("some error while moving");
-      console.error(err);
-    }
+    await retryReq(
+      () =>
+        this.dropbox.filesMoveV2({
+          from_path: remoteFileName1,
+          to_path: remoteFileName2,
+        }),
+      `${key1}=>${key2}` // just a hint here
+    );
   }
 
   async rm(key: string): Promise<void> {
@@ -730,9 +724,13 @@ export class FakeFsDropbox extends FakeFs {
           }),
         key // just a hint here
       );
-    } catch (err) {
-      console.error("some error while deleting");
-      console.error(err);
+    } catch (err: unknown) {
+      const dropboxErr = err as DropboxResponseError<any>;
+      if (dropboxErr.status === 409) {
+        // path not found — already deleted, treat as idempotent success
+        return;
+      }
+      throw err;
     }
   }
 
