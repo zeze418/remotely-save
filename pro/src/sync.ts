@@ -1714,6 +1714,19 @@ const dispatchOperationToActualV3 = async (
   }
 };
 
+export interface SyncRunResult {
+  /** how many file operations were attempted (succeeded + failed) */
+  attempted: number;
+  /** how many files were actually synced successfully */
+  succeeded: number;
+  /** how many file operations failed */
+  failed: number;
+  /** total planned file operations for this run */
+  total: number;
+  /** the per-file errors collected during the run */
+  errors: Error[];
+}
+
 export const doActualSync = async (
   mixedEntityMappings: Record<string, MixedEntity>,
   fsLocal: FakeFs,
@@ -1728,7 +1741,7 @@ export const doActualSync = async (
   conflictAction: ConflictActionType,
   triggerSource: SyncTriggerSourceType,
   callbackSyncProcess?: any
-) => {
+): Promise<SyncRunResult> => {
   profiler?.addIndent();
   profiler?.insert("doActualSync: enter");
   console.debug(`concurrency === ${concurrency}`);
@@ -1863,12 +1876,20 @@ export const doActualSync = async (
     profiler?.removeIndent();
   }
 
-  if (allErrors.length > 0) {
-    throw new AggregateError(allErrors);
-  }
-
+  // Note: we intentionally do NOT throw here on per-file errors. Each
+  // independent file is attempted, and the failures are reported back to the
+  // caller as structured stats so the caller can show an accurate
+  // "succeeded X / total Y" summary and still mark the run as not fully ok.
   profiler?.insert(`doActualSync: exit`);
   profiler?.removeIndent();
+
+  return {
+    attempted: realCounter + allErrors.length,
+    succeeded: realCounter,
+    failed: allErrors.length,
+    total: realTotalCount,
+    errors: allErrors,
+  };
 };
 
 export type SyncStatusType =
@@ -1901,7 +1922,12 @@ export async function syncer(
   configSaver: () => Promise<any>,
   getProtectModifyPercentageErrorStrFunc: any,
   markIsSyncingFunc: (isSyncing: boolean) => void,
-  notifyFunc?: (s: SyncTriggerSourceType, step: number, everythingOk?: boolean) => Promise<any>,
+  notifyFunc?: (
+    s: SyncTriggerSourceType,
+    step: number,
+    everythingOk?: boolean,
+    syncResult?: SyncRunResult
+  ) => Promise<any>,
   errNotifyFunc?: (s: SyncTriggerSourceType, error: Error) => Promise<any>,
   ribboonFunc?: (s: SyncTriggerSourceType, step: number) => Promise<any>,
   statusBarFunc?: (
@@ -1916,6 +1942,7 @@ export async function syncer(
 
   let everythingOk = true;
   let step = 0;
+  let syncResult: SyncRunResult | undefined = undefined;
 
   try {
     // check pro feature
@@ -2028,7 +2055,7 @@ export async function syncer(
       await notifyFunc?.(triggerSource, step);
       await ribboonFunc?.(triggerSource, step);
       await statusBarFunc?.(triggerSource, step, everythingOk);
-      await doActualSync(
+      syncResult = await doActualSync(
         mixedEntityMappings,
         fsLocal,
         fsEncrypt,
@@ -2044,6 +2071,17 @@ export async function syncer(
         callbackSyncProcess
       );
       profiler?.insert(`finish step${step} (actual sync)`);
+
+      // per-file failures don't throw anymore; surface them here so the run is
+      // marked not-fully-ok and each failed file is reported to the user, while
+      // the structured stats still flow to the completion notice.
+      if (syncResult.errors.length > 0) {
+        everythingOk = false;
+        await errNotifyFunc?.(
+          triggerSource,
+          new AggregateError(syncResult.errors)
+        );
+      }
     } else {
       await notifyFunc?.(triggerSource, step);
       await ribboonFunc?.(triggerSource, step);
@@ -2066,7 +2104,7 @@ export async function syncer(
   await profiler?.save(db, vaultRandomID, settings.serviceType);
 
   step = 8;
-  await notifyFunc?.(triggerSource, step, everythingOk);
+  await notifyFunc?.(triggerSource, step, everythingOk, syncResult);
   await ribboonFunc?.(triggerSource, step);
   await statusBarFunc?.(triggerSource, step, everythingOk);
 

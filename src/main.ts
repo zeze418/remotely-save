@@ -62,7 +62,7 @@ import {
   sendAuthReq as sendAuthReqYandexDisk,
   setConfigBySuccessfullAuthInplace as setConfigBySuccessfullAuthInplaceYandexDisk,
 } from "../pro/src/fsYandexDisk";
-import { syncer } from "../pro/src/sync";
+import { type SyncRunResult, syncer } from "../pro/src/sync";
 import type {
   RemotelySavePluginSettings,
   SyncTriggerSourceType,
@@ -293,7 +293,12 @@ export default class RemotelySavePlugin extends Plugin {
       }
     };
 
-    const notifyFunc = async (s: SyncTriggerSourceType, step: number, everythingOk?: boolean) => {
+    const notifyFunc = async (
+      s: SyncTriggerSourceType,
+      step: number,
+      everythingOk?: boolean,
+      syncResult?: SyncRunResult
+    ) => {
       switch (step) {
         case 0:
           if (s === "dry") {
@@ -389,23 +394,29 @@ export default class RemotelySavePlugin extends Plugin {
               this.settings.currLogLevel === "info"
                 ? t("syncrun_shortstep2_partial")
                 : t("syncrun_step8_partial");
-            const summary = t("syncrun_summary_partial", {
-              seconds: elapsedSeconds,
-              total: progressTotal,
-            });
+            // When the failure happened during the actual sync we have exact
+            // per-file stats; show "succeeded X / total Y". Otherwise (e.g. a
+            // failure before the sync started) we only know the elapsed time.
+            const summary =
+              syncResult !== undefined && syncResult.total > 0
+                ? t("syncrun_summary_partial", {
+                    seconds: elapsedSeconds,
+                    succeeded: syncResult.succeeded,
+                    total: syncResult.total,
+                  })
+                : t("syncrun_summary_failed", { seconds: elapsedSeconds });
             getNotice(s, `${base} ${summary}`, 10 * 1000);
           } else {
             const base =
               this.settings.currLogLevel === "info"
                 ? t("syncrun_shortstep2")
                 : t("syncrun_step8");
-            // On a successful run every planned operation completed, so the
-            // planned total is the accurate "files synced" count.
+            const syncedCount = syncResult?.succeeded ?? progressTotal;
             const summary =
-              progressTotal > 0
+              syncedCount > 0
                 ? t("syncrun_summary", {
                     seconds: elapsedSeconds,
-                    count: progressTotal,
+                    count: syncedCount,
                   })
                 : t("syncrun_summary_uptodate", { seconds: elapsedSeconds });
             getNotice(s, `${base} ${summary}`, 8 * 1000);
