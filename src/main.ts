@@ -457,6 +457,41 @@ export default class RemotelySavePlugin extends Plugin {
       this.isSyncing = isSyncing;
     };
 
+    // Real-time progress notice. The per-file progress is normally written to
+    // the status bar, but Obsidian mobile has no status bar, so users only saw
+    // the start and the finish. Here we keep a single persistent Notice updated
+    // with "syncing… X/Y files · Ns" plus an elapsed-seconds timer.
+    const showProgressNotice =
+      triggerSource === "manual" || triggerSource === "dry";
+    const syncStartTime = Date.now();
+    let progressNotice: Notice | undefined = undefined;
+    let progressTimer: number | undefined = undefined;
+    let progressInActualSync = false;
+    let progressCounter = 0;
+    let progressTotal = 0;
+    const renderProgressMsg = () => {
+      const seconds = Math.floor((Date.now() - syncStartTime) / 1000);
+      if (progressInActualSync && progressTotal > 0) {
+        return t("syncrun_syncing_progress", {
+          count: progressCounter,
+          total: progressTotal,
+          seconds,
+        });
+      }
+      return t("syncrun_syncing_preparing", { seconds });
+    };
+    const refreshProgressNotice = () => {
+      progressNotice?.setMessage(renderProgressMsg());
+    };
+    const stopProgressNotice = () => {
+      if (progressTimer !== undefined) {
+        window.clearInterval(progressTimer);
+        progressTimer = undefined;
+      }
+      progressNotice?.hide();
+      progressNotice = undefined;
+    };
+
     const callbackSyncProcess = async (
       s: SyncTriggerSourceType,
       realCounter: number,
@@ -473,6 +508,10 @@ export default class RemotelySavePlugin extends Plugin {
         decision,
         triggerSource
       );
+      progressInActualSync = true;
+      progressCounter = realCounter;
+      progressTotal = realTotalCount;
+      refreshProgressNotice();
     };
 
     if (this.isSyncing) {
@@ -493,27 +532,36 @@ export default class RemotelySavePlugin extends Plugin {
 
     const configSaver = async () => await this.saveSettings();
 
-    await syncer(
-      fsLocal,
-      fsRemote,
-      fsEncrypt,
-      profiler,
-      this.db,
-      triggerSource,
-      profileID,
-      this.vaultRandomID,
-      this.app.vault.configDir,
-      this.settings,
-      this.manifest.version,
-      configSaver,
-      getProtectError,
-      markIsSyncingFunc,
-      notifyFunc,
-      errNotifyFunc,
-      ribboonFunc,
-      statusBarFunc,
-      callbackSyncProcess
-    );
+    if (showProgressNotice) {
+      progressNotice = new Notice(renderProgressMsg(), 0); // 0 = stay until hidden
+      progressTimer = window.setInterval(refreshProgressNotice, 1000);
+    }
+
+    try {
+      await syncer(
+        fsLocal,
+        fsRemote,
+        fsEncrypt,
+        profiler,
+        this.db,
+        triggerSource,
+        profileID,
+        this.vaultRandomID,
+        this.app.vault.configDir,
+        this.settings,
+        this.manifest.version,
+        configSaver,
+        getProtectError,
+        markIsSyncingFunc,
+        notifyFunc,
+        errNotifyFunc,
+        ribboonFunc,
+        statusBarFunc,
+        callbackSyncProcess
+      );
+    } finally {
+      stopProgressNotice();
+    }
 
     fsEncrypt.closeResources();
     (profiler as Profiler | undefined)?.clear();

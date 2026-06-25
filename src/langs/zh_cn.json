@@ -24,6 +24,8 @@
   "syncrun_shortstep2skip": "2/2 Remotely Save 在空跑模式，跳过实际数据交换步骤。",
   "syncrun_shortstep2": "2/2 Remotely Save 已完成同步！",
   "syncrun_shortstep2_partial": "2/2 Remotely Save 同步完成但有错误！部分文件同步失败。",
+  "syncrun_syncing_preparing": "Remotely Save 正在同步中…（准备中）· 已用 {{seconds}} 秒",
+  "syncrun_syncing_progress": "Remotely Save 正在同步中… {{count}}/{{total}} 个文件 · 已用 {{seconds}} 秒",
   "syncrun_abort": "{{manifestID}}-{{theDate}}：中断同步，同步来源={{triggerSource}}，出错阶段={{syncStatus}}",
   "syncrun_abort_protectmodifypercentage": "中断同步！您设置了不允许 >= {{protectModifyPercentage}}% 的变更，但是现在 {{realModifyDeleteCount}}/{{allFilesCount}}={{percent}}% 的文件会被修改或删除！如果您确认这次同步是您想要的，那么请在设置里修改允许比例。",
   "protocol_saveqr": " {{manifestName}} 的新设置导入完成。请重启插件设置页使之生效。",
