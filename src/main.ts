@@ -380,21 +380,38 @@ export default class RemotelySavePlugin extends Plugin {
           }
           break;
 
-        case 8:
+        case 8: {
+          const elapsedSeconds = Math.floor(
+            (Date.now() - syncStartTime) / 1000
+          );
           if (everythingOk === false) {
-            if (this.settings.currLogLevel === "info") {
-              getNotice(s, t("syncrun_shortstep2_partial"), 10 * 1000);
-            } else {
-              getNotice(s, t("syncrun_step8_partial"), 10 * 1000);
-            }
+            const base =
+              this.settings.currLogLevel === "info"
+                ? t("syncrun_shortstep2_partial")
+                : t("syncrun_step8_partial");
+            const summary = t("syncrun_summary_partial", {
+              seconds: elapsedSeconds,
+              total: progressTotal,
+            });
+            getNotice(s, `${base} ${summary}`, 10 * 1000);
           } else {
-            if (this.settings.currLogLevel === "info") {
-              getNotice(s, t("syncrun_shortstep2"));
-            } else {
-              getNotice(s, t("syncrun_step8"));
-            }
+            const base =
+              this.settings.currLogLevel === "info"
+                ? t("syncrun_shortstep2")
+                : t("syncrun_step8");
+            // On a successful run every planned operation completed, so the
+            // planned total is the accurate "files synced" count.
+            const summary =
+              progressTotal > 0
+                ? t("syncrun_summary", {
+                    seconds: elapsedSeconds,
+                    count: progressTotal,
+                  })
+                : t("syncrun_summary_uptodate", { seconds: elapsedSeconds });
+            getNotice(s, `${base} ${summary}`, 8 * 1000);
           }
           break;
+        }
 
         default:
           throw Error(`unknown step=${step} for showing notice`);
